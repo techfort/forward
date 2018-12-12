@@ -11,9 +11,24 @@ import (
 
 // PubSub is a wrapper for the redis pubsub
 type PubSub interface {
-	Channel() EventChannel
+	Channel() (EventChannel, chan error)
 	Close()
 }
+
+// Key strips off the keyspace prefix
+func Key(key string) string {
+	return strings.Replace(key, "__keyspace@0__:", "", 1)
+}
+
+// RedisKV wraps the result of a fetch
+type RedisKV struct {
+	Key  string
+	Data []byte
+	Type string
+}
+
+// EventChannel is an alias for a channel of rediskv events
+type EventChannel chan RedisKV
 
 type conn struct {
 	*redis.Client
@@ -60,24 +75,24 @@ func NewPubSub(config PubSubConfig) PubSub {
 }
 
 // Channel returns the channel of events
-func (ps pubsub) Channel() EventChannel {
+func (ps pubsub) Channel() (EventChannel, chan error) {
 	events := make(EventChannel, 2)
+	errs := make(chan error, 2)
 	go func() {
 		msgs := ps.PubSub.Channel()
 		for msg := range msgs {
 			op, key := msg.Payload, Key(msg.Channel)
 			go func() {
 				event, err := ps.Conn.Fetch(op, key)
-				if err == nil {
-					fmt.Println(fmt.Sprintf("Retrieved: %v => %+v", key, event))
-					events <- event
+				if err != nil {
+					errs <- errors.Wrap(err, "failed to fetch redis key-value pair")
 				} else {
-					fmt.Println(err)
+					events <- event
 				}
 			}()
 		}
 	}()
-	return events
+	return events, errs
 }
 
 func (ps pubsub) Close() {
@@ -171,18 +186,3 @@ func (c conn) Fetch(op, key string) (RedisKV, error) {
 func (c conn) Close() {
 	c.Close()
 }
-
-// Key strips off the keyspace prefix
-func Key(key string) string {
-	return strings.Replace(key, "__keyspace@0__:", "", 1)
-}
-
-// RedisKV wraps the result of a fetch
-type RedisKV struct {
-	Key  string
-	Data []byte
-	Type string
-}
-
-// EventChannel is an alias for a channel of rediskv events
-type EventChannel chan RedisKV

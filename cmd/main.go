@@ -17,9 +17,11 @@ func main() {
 		KeyspaceID: 0,
 	})
 	defer ps.Close()
-	err := make(chan error, 2)
-	for e := range ps.Channel() {
-		fmt.Println(fmt.Sprintf("Event: %+v", e))
-	}
-	<-err
+	events, errs := ps.Channel()
+	go func() {
+		for e := range events {
+			fmt.Println(fmt.Sprintf("Event: %+v", e))
+		}
+	}()
+	<-errs
 }
