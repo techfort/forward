@@ -171,6 +171,10 @@ func (c conn) renameTo(key string) (RedisKV, error) {
 	return RedisKV{key, "", "rename_to"}, nil
 }
 
+func (c conn) evicted(key string) (RedisKV, error) {
+	return RedisKV{key, "", "evicted"}, nil
+}
+
 // Handler is a function type to fetch keys
 type Handler func(string) (RedisKV, error)
 
@@ -178,6 +182,7 @@ func actionMap(c conn) map[string]Handler {
 	return map[string]Handler{
 		"expire":       c.expire,
 		"expired":      c.expired,
+		"evicted":      c.evicted,
 		"rename_to":    c.renameTo,
 		"rename_from":  c.renameFrom,
 		"sadd":         c.fetchSet,
