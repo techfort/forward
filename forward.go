@@ -23,8 +23,17 @@ func Key(key string) string {
 // RedisKV wraps the result of a fetch
 type RedisKV struct {
 	Key  string
-	Data []byte
+	Data string
 	Type string
+}
+
+func (kv RedisKV) String() (string, error) {
+	var i interface{}
+	err := json.Unmarshal([]byte(kv.Data), &i)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to unmarshal Data of event")
+	}
+	return fmt.Sprintf(`{"Key": "%v", "Type": "%v", "Data": "%v"}`, kv.Key, kv.Type, i.(string)), err
 }
 
 // EventChannel is an alias for a channel of rediskv events
@@ -76,6 +85,7 @@ func NewPubSub(config PubSubConfig) PubSub {
 
 // Channel returns the channel of events
 func (ps pubsub) Channel() (EventChannel, chan error) {
+	fmt.Println("Starting Forward event listener...")
 	events := make(EventChannel, 2)
 	errs := make(chan error, 2)
 	go func() {
@@ -100,9 +110,13 @@ func (ps pubsub) Close() {
 	ps.Close()
 }
 
+func (c conn) del(key string) (RedisKV, error) {
+	return RedisKV{key, "", "delete"}, nil
+}
+
 func (c conn) fetchString(key string) (RedisKV, error) {
 	s, err := c.Get(key).Result()
-	return RedisKV{key, []byte(s), "string"}, err
+	return RedisKV{key, s, "string"}, err
 }
 
 func (c conn) fetchHash(key string) (RedisKV, error) {
@@ -111,7 +125,7 @@ func (c conn) fetchHash(key string) (RedisKV, error) {
 		return RedisKV{}, err
 	}
 	data, err := json.Marshal(h)
-	return RedisKV{key, data, "hash"}, err
+	return RedisKV{key, string(data), "hash"}, err
 }
 
 func (c conn) fetchSet(key string) (RedisKV, error) {
@@ -120,7 +134,7 @@ func (c conn) fetchSet(key string) (RedisKV, error) {
 		return RedisKV{}, err
 	}
 	data, err := json.Marshal(s)
-	return RedisKV{key, data, "set"}, err
+	return RedisKV{key, string(data), "set"}, err
 }
 
 func (c conn) fetchZSet(key string) (RedisKV, error) {
@@ -129,7 +143,7 @@ func (c conn) fetchZSet(key string) (RedisKV, error) {
 		return RedisKV{}, err
 	}
 	data, err := json.Marshal(z)
-	return RedisKV{key, data, "zset"}, err
+	return RedisKV{key, string(data), "zset"}, err
 }
 
 func (c conn) fetchList(key string) (RedisKV, error) {
@@ -138,7 +152,23 @@ func (c conn) fetchList(key string) (RedisKV, error) {
 		return RedisKV{}, err
 	}
 	data, err := json.Marshal(l)
-	return RedisKV{key, data, "list"}, err
+	return RedisKV{key, string(data), "list"}, err
+}
+
+func (c conn) expire(key string) (RedisKV, error) {
+	return RedisKV{key, "", "expire"}, nil
+}
+
+func (c conn) expired(key string) (RedisKV, error) {
+	return RedisKV{key, "", "expired"}, nil
+}
+
+func (c conn) renameFrom(key string) (RedisKV, error) {
+	return RedisKV{key, "", "rename_from"}, nil
+}
+
+func (c conn) renameTo(key string) (RedisKV, error) {
+	return RedisKV{key, "", "rename_to"}, nil
 }
 
 // Handler is a function type to fetch keys
@@ -146,27 +176,50 @@ type Handler func(string) (RedisKV, error)
 
 func actionMap(c conn) map[string]Handler {
 	return map[string]Handler{
-		"set":       c.fetchString,
-		"hset":      c.fetchHash,
-		"sadd":      c.fetchSet,
-		"srem":      c.fetchSet,
-		"zadd":      c.fetchZSet,
-		"zrem":      c.fetchZSet,
-		"lpush":     c.fetchList,
-		"lpop":      c.fetchList,
-		"hmset":     c.fetchHash,
-		"linsert":   c.fetchList,
-		"blpop":     c.fetchList,
-		"brpop":     c.fetchList,
-		"rpop":      c.fetchList,
-		"rpush":     c.fetchList,
-		"lpushx":    c.fetchList,
-		"rpushx":    c.fetchList,
-		"ltrim":     c.fetchList,
-		"lpoprpush": c.fetchList,
-		"lset":      c.fetchList,
-		"hincrby":   c.fetchHash,
-		"hsetnx":    c.fetchHash,
+		"expire":       c.expire,
+		"expired":      c.expired,
+		"rename_to":    c.renameTo,
+		"rename_from":  c.renameFrom,
+		"sadd":         c.fetchSet,
+		"srem":         c.fetchSet,
+		"spop":         c.fetchSet,
+		"sinterstore":  c.fetchSet,
+		"sunionstore":  c.fetchSet,
+		"sdiffstore":   c.fetchSet,
+		"zadd":         c.fetchZSet,
+		"zrem":         c.fetchZSet,
+		"zrembyscore":  c.fetchZSet,
+		"zrembyrank":   c.fetchZSet,
+		"znterstore":   c.fetchZSet,
+		"zdiffstore":   c.fetchZSet,
+		"zunionstore":  c.fetchZSet,
+		"set":          c.fetchString,
+		"append":       c.fetchString,
+		"setrange":     c.fetchString,
+		"incrby":       c.fetchString,
+		"incrbyfloat":  c.fetchString,
+		"incr":         c.fetchString,
+		"decrby":       c.fetchString,
+		"decr":         c.fetchString,
+		"lpush":        c.fetchList,
+		"sortstore":    c.fetchList,
+		"lpop":         c.fetchList,
+		"linsert":      c.fetchList,
+		"blpop":        c.fetchList,
+		"brpop":        c.fetchList,
+		"rpop":         c.fetchList,
+		"rpush":        c.fetchList,
+		"lpushx":       c.fetchList,
+		"rpushx":       c.fetchList,
+		"ltrim":        c.fetchList,
+		"lpoprpush":    c.fetchList,
+		"lset":         c.fetchList,
+		"hset":         c.fetchHash,
+		"hincrby":      c.fetchHash,
+		"hincrbyfloat": c.fetchHash,
+		"hmset":        c.fetchHash,
+		"hsetnx":       c.fetchHash,
+		"del":          c.del,
 	}
 }
 

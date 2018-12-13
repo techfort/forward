@@ -1,0 +1,26 @@
+version: '2.1'
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    labels:
+      group: common
+    healthcheck:
+      test: rabbitmqctl node_health_check
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    expose:
+      - "5672"
+      - "15672"
+
+  redis:
+    container_name: "redis"
+    image: redis:alpine
+    healthcheck:
+      test: redis-cli ping
+    ports:
+      - "6379:6379"
+    expose:
+      - "6379"
+
