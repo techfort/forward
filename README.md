@@ -1,6 +1,6 @@
 # forward
 
-`forward` is a micro Go library that enables keyspace notifications on redis and listens to events, retrieves newly added/updated data and makes it available for handling or forwarding to other data channels (such as messaging systems or streams). Deletion and expiration events return the relevant key.
+`forward` is a micro Go library that enables keyspace notifications on redis and listens to events, wraps them in a struct containing `Data`, `Key` and `Type` and makes them available for processing (eg. forwarding from Redis to RabbitMQ, Kinesis, Kafka etc.) Deletion and expiration events behave the same way, except the `Data` field is `nil`.
 
 Checkout `example/forwardtorabbitmq.go` to see how data from redis is forwarded onto rabbitmq queues and then consumed.
 
