@@ -21,6 +21,11 @@ ps := forward.NewPubSub(forward.PubSubConfig{
 events, errs := ps.Channel()
 
 for e := range events {
+  /*
+  Example
+  The following Redis operation: SET foo bar
+  would generate an event which is a forward.RedisKV{Data:"bar", Key: "foo", Type: "string"}
+  */
   //... your logic here...
 }
 ```
