@@ -4,6 +4,7 @@
 
 Checkout `example/forwardtorabbitmq.go` to see how data from redis is forwarded onto rabbitmq queues and then consumed.
 
+Docs: https://godoc.org/github.com/techfort/forward
 
 ## Usage
 
